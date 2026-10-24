@@ -2,18 +2,19 @@
    JGVRP Speedometer HUD  (layout pill, bar RPM segmented)
 
    API global (dipanggil dari game / CEF) - semua nama lama dipertahankan:
-     setSpeed(m/s)            setRPM(0.0 - 1.0)
-     setFuel(0-1 | 0-100)     setHealth(0-1 | 0-1000)
+     setSpeed(m/s -> tampil MPH)   setRPM(0.0 - 1.0)
+     setFuel(0-1 | 0-100)     setHealth(0-1 | 0-1000)  -> OIL PRESSURE (ikon oli: kuning <= 50%, merah <= 30%)
      setGear(n)               setHeadlights(0 off | 1 low | 2 high)
      setSeatbelts(bool)       setEngine(bool)
-     setOdometer(jarak)       updateLockStatus(state) (+ alias lama)
+     setOdometer(jarak, input = CONFIG.odoInputUnit, default MIL)
+     updateLockStatus(state) (+ alias lama)
      setLeftIndicator / setRightIndicator  (no-op, sein tidak ada di desain)
      playIntro()
 
    API baru (netral, tidak terikat framework apa pun):
      setTemp(derajat C)       setCheckEngine(bool)
      setOilWarning(bool)      setBatteryWarning(bool)
-     setTrip(km)              resetTrip()
+     setTrip(mil)             resetTrip()
      setTheme(nama|angka)     nextTheme()
 
    Pesan NUI: window.postMessage({ action: 'setSpeed', speed: 12.3 })
@@ -28,9 +29,9 @@ const CONFIG = {
     maxRpm: 9,              // skala tachometer (x1000), sesuai angka 0-9 di desain
     redline: 8,             // zona merah mulai di sini (x1000)
     rpmSegments: 80,        // jumlah segmen bar RPM
-    gaugeSegments: 14,      // jumlah segmen bar fuel / oil pressure
-    speedFactor: 2.236936, // m/s -> mph
-    odoInputUnit: 'mi',     // satuan input odometer dari game: 'mi' atau 'km' (tampilan selalu MI)
+    gaugeSegments: 14,      // jumlah segmen bar fuel / temp
+    units: 'imperial',      // tampilan: 'imperial' (MPH + MI) atau 'metric' (KM/H + KM)
+    odoInputUnit: 'mi',     // satuan yang DIKIRIM game ke setOdometer: 'mi' atau 'km'
     tempMinC: 50,           // suhu di ujung "C"
     tempMaxC: 130,          // suhu di ujung "H"
     tempHotC: 105,          // di atas ini 4 segmen terakhir jadi merah
@@ -38,7 +39,11 @@ const CONFIG = {
     maxFps: 60,
 };
 
-const MI_TO_KM = 1.609344;
+const UNITS = {
+    imperial: { speed: 2.236936, speedLbl: 'MPH',  perMeter: 1 / 1609.344, distLbl: 'MI' },
+    metric:   { speed: 3.6,      speedLbl: 'KM/H', perMeter: 1 / 1000,     distLbl: 'KM' },
+};
+const U = UNITS[CONFIG.units] || UNITS.imperial;
 
 const NOOP_EL = document.createElement('div');   // pengaman kalau ada elemen yang sudah dihapus dari HTML
 const $ = (id) => document.getElementById(id) || NOOP_EL;
@@ -123,9 +128,9 @@ function rpmLitCount(ratio) {
     return Math.max(0, Math.min(RPM.n, Math.floor((x - RPM.c0) / RPM.pitch) + 1));
 }
 
-// ---------- Bar fuel / oil pressure (visual mengikuti Engine Health) ----------
+// ---------- Bar fuel / temp ----------
 const bars = {};
-['fuel', 'oil'].forEach((k) => {
+['fuel', 'temp'].forEach((k) => {
     const el = $('bar-' + k), mk = el.querySelector('.mk');
     const segs = [];
     for (let i = 0; i < CONFIG.gaugeSegments; i++) {
@@ -151,7 +156,7 @@ function recolor(a, l) {
     const N = CONFIG.gaugeSegments;
     rpmSegs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(rpmStops(a, l), i / (RPM.n - 1)))));
     bars.fuel.segs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(fuelStops(a), i / (N - 1)))));
-    bars.oil.segs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(fuelStops(a), i / (N - 1)))));
+    bars.temp.segs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(tempStops(a), i / (N - 1)))));
 }
 
 // ---------- Teks intro (ganti di index.html pada data-text="..."; ukuran huruf otomatis) ----------
@@ -173,8 +178,8 @@ function recolor(a, l) {
 // ---------- State ----------
 const state = {
     mps: 0,          // kecepatan mentah (m/s)
-    mph: 0,
-    lastMphShown: -1,
+    kmh: 0,
+    lastKmhShown: -1,
     rpm: 0,          // target 0-1 dari game
     rpmShown: 0,     // nilai yang di-smooth untuk animasi
     litRpm: 0,
@@ -186,7 +191,7 @@ const state = {
     checkEngine: false,
     oilWarn: false,
     battWarn: false,
-    trip: 0,         // miles
+    trip: 0,         // jarak Trip A (MI atau KM sesuai CONFIG.units)
     lastSpeedAt: 0,
     lastTripSave: 0,
 };
@@ -230,19 +235,20 @@ function frame(now) {
 }
 kick();
 
-// ---------- Trip A (miles; dihitung otomatis dari kecepatan dan disimpan di localStorage) ----------
-try { state.trip = Math.max(0, parseFloat(localStorage.getItem('hudTrip')) || 0); } catch (e) {}
+// ---------- Trip A (dihitung otomatis dari kecepatan, disimpan di localStorage) ----------
+const TRIP_KEY = 'hudTrip_' + CONFIG.units;      // dipisah per satuan agar tidak tercampur
+try { state.trip = Math.max(0, parseFloat(localStorage.getItem(TRIP_KEY)) || 0); } catch (e) {}
 function renderTrip() { setText($('trip'), state.trip.toFixed(1)); }
 function saveTrip(force) {
     const now = performance.now();
     if (!force && now - state.lastTripSave < 5000) return;
     state.lastTripSave = now;
-    try { localStorage.setItem('hudTrip', state.trip.toFixed(3)); } catch (e) {}
+    try { localStorage.setItem(TRIP_KEY, state.trip.toFixed(3)); } catch (e) {}
 }
-window.setTrip = function (miles) { state.trip = Math.max(0, Number(miles) || 0); renderTrip(); saveTrip(true); };
+window.setTrip = function (dist) { state.trip = Math.max(0, Number(dist) || 0); renderTrip(); saveTrip(true); };
 window.resetTrip = function () { window.setTrip(0); };
 
-// ---------- 1. Kecepatan (m/s -> MPH) ----------
+// ---------- 1. Kecepatan (m/s -> MPH atau KM/H sesuai CONFIG.units) ----------
 function padDigits(n, len) {
     const s = String(Math.max(0, n)).padStart(len, '0');
     const firstSig = s.search(/[1-9]/);
@@ -251,18 +257,18 @@ function padDigits(n, len) {
 }
 window.setSpeed = function (speed) {
     const mps = Math.max(0, Number(speed) || 0);
-    const mph = Math.round(mps * CONFIG.speedFactor);
+    const kmh = Math.round(mps * U.speed);     // nilai tampil (nama variabel lama dipertahankan)
     state.mps = mps;
-    state.mph = mph;
-    if (mph !== state.lastMphShown) {                 // ganti DOM hanya kalau angkanya berubah
-        state.lastMphShown = mph;
-        $('speed-display').innerHTML = padDigits(mph, 3);
+    state.kmh = kmh;
+    if (kmh !== state.lastKmhShown) {                 // ganti DOM hanya kalau angkanya berubah
+        state.lastKmhShown = kmh;
+        $('speed-display').innerHTML = padDigits(kmh, 3);
     }
     const now = performance.now();                    // integrasi jarak untuk Trip A
     if (state.lastSpeedAt) {
         const dt = Math.min(1, (now - state.lastSpeedAt) / 1000);
         const before = state.trip.toFixed(1);
-        state.trip += (mps * dt) / 1609.344;
+        state.trip += mps * dt * U.perMeter;
         if (state.trip.toFixed(1) !== before) { renderTrip(); saveTrip(false); }
     }
     state.lastSpeedAt = now;
@@ -285,19 +291,17 @@ window.setFuel = function (fuel) {
     setBar('fuel', percent);
 };
 
-// ---------- 4. Engine health -> check engine otomatis saat rendah ----------
+// ---------- 4. setHealth = OIL PRESSURE (0-1 atau 0-1000) -> ikon oli: kuning <= 50%, merah <= 30% ----------
 function updateWarnings() {
     const h = state.health;
-    const engineCls = h <= 0.3 ? ' on-red' : (state.checkEngine || h <= 0.5) ? ' on-amber' : '';
-    setClass($('ind-engine'), 'ind' + engineCls);
-    setClass($('ind-oil'), 'ind' + (state.oilWarn ? ' on-red' : ''));
+    const oilCls = (h <= 0.3 || state.oilWarn) ? ' on-red' : h <= 0.5 ? ' on-amber' : '';
+    setClass($('ind-engine'), 'ind' + (state.checkEngine ? ' on-amber' : ''));
+    setClass($('ind-oil'), 'ind' + oilCls);
     setClass($('ind-batt'), 'ind' + (state.battWarn ? ' on-red' : ''));
 }
 window.setHealth = function (health) {
     const val = Number(health) || 0;
     const percent = clamp01(val > 1 ? val / 1000 : val);
-    // Bar OIL PRESS menggunakan Engine Health sebagai sumber nilai.
-    setBar('oil', percent);
     if (percent === state.health) return;
     state.health = percent;
     updateWarnings();
@@ -345,17 +349,19 @@ window.setSeatbelts = function (val) {
     setClass($('seatbelts'), state.belted ? 'ind on-green' : 'ind on-red');
 };
 
-// ---------- 10. Odometer (input sesuai CONFIG.odoInputUnit, tampil MI 6 digit) ----------
+// ---------- 10. Odometer (input sesuai CONFIG.odoInputUnit, tampil 6 digit dalam MI/KM) ----------
 window.setOdometer = function (distance) {
     const d = Math.max(0, Number(distance) || 0);
-    const miles = CONFIG.odoInputUnit === 'km' ? d / MI_TO_KM : d;
-    setText($('odometer'), String(Math.floor(miles)).padStart(6, '0'));
+    const meters = d * (CONFIG.odoInputUnit === 'km' ? 1000 : 1609.344);
+    setText($('odometer'), String(Math.floor(meters * U.perMeter)).padStart(6, '0'));
 };
 
-// ---------- 11. Kompatibilitas: API lama diarahkan ke bar Oil Press berbasis Engine Health ----------
-window.setOilPressure = function () { setBar('oil', state.health); };
-// Kompatibilitas API lama: bar tetap mengikuti Engine Health, bukan suhu/tekanan oli terpisah.
-window.setTemp = window.setOilPressure;
+// ---------- 11. Suhu mesin (derajat C) ----------
+window.setTemp = function (celsius) {
+    const c = Number(celsius) || 0;
+    setBar('temp', (c - CONFIG.tempMinC) / (CONFIG.tempMaxC - CONFIG.tempMinC));
+    elHud.classList.toggle('temp-hot', c >= CONFIG.tempHotC);
+};
 
 // ---------- Engine (JGVRP: setEngine(true/false)) ----------
 window.setEngine = function (on) { state.engine = isTrueValue(on); };
@@ -513,7 +519,6 @@ const ACTIONS = {
     setSeatbelts:   (d) => window.setSeatbelts(!!d.state),
     setOdometer:    (d) => window.setOdometer(Number(d.distance) || 0),
     setTemp:        (d) => window.setTemp(d.temp !== undefined ? d.temp : d.value),
-    setOilPressure: () => window.setOilPressure(),
     setCheckEngine: (d) => window.setCheckEngine(d.state),
     setOilWarning:  (d) => window.setOilWarning(d.state),
     setBatteryWarning: (d) => window.setBatteryWarning(d.state),
@@ -545,6 +550,11 @@ window.addEventListener('message', function (event) {
     const sc = parseFloat(query.get('scale'));
     if (!isNaN(sc) && sc > 0) document.documentElement.style.setProperty('--scale', String(sc));
 })();
+
+// ---------- Label satuan (MPH/MI atau KM/H/KM) ----------
+setText($('speed-unit'), U.speedLbl);
+setText($('trip-unit'), U.distLbl);
+setText($('odo-unit'), U.distLbl);
 
 // ---------- Nilai awal ----------
 window.setSpeed(0);
@@ -589,7 +599,7 @@ if (IS_DEMO) {
         window.addEventListener('resize', fit);
     }
 
-    const GEAR_TOP = [0, 45, 77, 116, 158, 206, 265];   // batas km/h per gigi
+    const GEAR_TOP = [0, 28, 48, 72, 98, 128, 165];   // batas mph per gigi
     let mps = 0, gear = 1, throttle = true, odo = 18452.3, health = 1000, fuel = 86, t = 0;
 
     setTimeout(() => {
@@ -598,21 +608,20 @@ if (IS_DEMO) {
         setHeadlights(1);
         setInterval(() => {
             t += 0.05;
-            const mph = mps * CONFIG.speedFactor;
-            const kmh = mps * 3.6;
+            const kmh = mps * 2.236936;                 // mph (nama variabel dipertahankan)
             if (throttle) mps += 0.38 / gear; else mps -= 0.55;
-            if (kmh > 240) throttle = false;
+            if (kmh > 150) throttle = false;
             if (mps <= 0) { mps = 0; throttle = true; }
 
             while (gear < 6 && kmh > GEAR_TOP[gear]) gear++;
-            while (gear > 1 && kmh < GEAR_TOP[gear - 1] - 10) gear--;
+            while (gear > 1 && kmh < GEAR_TOP[gear - 1] - 6) gear--;
             const lo = GEAR_TOP[gear - 1], hi = GEAR_TOP[gear];
             const rpm = 0.11 + clamp01((kmh - lo) / (hi - lo)) * (throttle ? 0.89 : 0.6);
 
             health = Math.max(180, health - 0.9);
             if (health <= 180) health = 1000;
             fuel = fuel <= 4 ? 86 : fuel - 0.02;
-            odo += (mph * 0.05) / 3600;
+            odo += (kmh * 0.05) / 3600;                 // mil
 
             setSpeed(mps);
             setRPM(rpm);
