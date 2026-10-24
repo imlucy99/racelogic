@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JGVRP Speedometer HUD</title>
+  <meta name="description" content="Custom digital speedometer HUD untuk JGVRP: bar RPM segmented, speed KM/H, gear, fuel, temp, trip/odo, dan indikator kendaraan." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- Gradient bersama untuk semua panel (jangan dihapus) -->
+  <svg class="shared-defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <defs>
+      <linearGradient id="panel-bg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#07131f" />
+        <stop offset="1" stop-color="#02060c" />
+      </linearGradient>
+    </defs>
+  </svg>
+
+  <!-- Tombol ganti tema: hanya tampil di mode demo atau dengan ?button. Shortcut: tekan T -->
+  <button class="theme-btn" id="theme-btn" type="button" title="Ganti tema (T)"><i></i><span id="theme-name">Biru</span></button>
+
+  <div class="hud-wrap">
+    <div class="cluster booting" id="hud">
+
+      <i class="side-led left"></i>
+      <i class="side-led right"></i>
+
+      <div class="screen">
+
+        <!-- ===== BARIS 1: RPM (bar segmented digambar oleh script.js) ===== -->
+        <section class="rpm-panel">
+          <svg id="rpm" viewBox="0 0 930 76" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
+        </section>
+
+        <!-- ===== BARIS 2: GEAR | SPEED | FUEL + TEMP ===== -->
+        <section class="mid">
+
+          <div class="gear-box" title="Gear">
+            <svg class="frame" viewBox="0 0 152 118" preserveAspectRatio="none" aria-hidden="true">
+              <path class="fill" d="M14 2H132L150 20V98Q150 116 132 116H20L2 98V16Q2 2 14 2Z" />
+              <path class="edge strong" d="M14 2H132L150 20V98Q150 116 132 116H20L2 98V16Q2 2 14 2Z" />
+            </svg>
+            <div class="gear-val" id="gear">N</div>
+            <div class="gear-lbl">GEAR</div>
+          </div>
+
+          <div class="vent" aria-hidden="true"></div>
+
+          <div class="speed-panel">
+            <svg class="frame" viewBox="0 0 538 118" preserveAspectRatio="none" aria-hidden="true">
+              <path class="fill" d="M54 2H484L536 84L508 116H30L2 84Z" />
+              <path class="edge" d="M54 2H484L536 84L508 116H30L2 84Z" />
+              <polyline class="chev" points="2,84 54,2" />
+              <polyline class="chev" points="536,84 484,2" />
+            </svg>
+            <div class="readout">
+              <div id="speed-display" class="speed"><span class="dim">00</span><span class="bright">0</span></div>
+              <span class="unit">KM/H</span>
+            </div>
+          </div>
+
+          <div class="gauges">
+            <svg class="frame" viewBox="0 0 278 118" preserveAspectRatio="none" aria-hidden="true">
+              <rect class="fill" x="1" y="1" width="276" height="116" rx="26" />
+              <rect class="edge" x="1" y="1" width="276" height="116" rx="26" />
+            </svg>
+
+            <div class="grow" title="Fuel">
+              <span class="gicon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.77 7.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11c-.94.36-1.61 1.26-1.61 2.33 0 1.38 1.12 2.5 2.5 2.5.36 0 .69-.08 1-.21v7.21c0 .55-.45 1-1 1s-1-.45-1-1V14c0-1.1-.9-2-2-2h-1V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v16h10v-7.5h1.5v5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V9c0-.69-.28-1.32-.73-1.77zM12 10H6V5h6v5zm6 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/></svg></span>
+              <span class="glbl">E</span>
+              <div class="gbar" id="bar-fuel"><b class="mk"></b></div>
+              <span class="glbl">F</span>
+            </div>
+
+            <i class="gsep"></i>
+
+            <div class="grow" title="Engine temperature">
+              <span class="gicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 13V5.5a2 2 0 0 1 4 0V13a3.4 3.4 0 1 1-4 0z"/><path d="M3 20.5c1.6-1.3 3.2-1.3 4.8 0s3.2 1.3 4.8 0 3.2-1.3 4.8 0 2.4 1 3.6.3"/></svg></span>
+              <span class="glbl">C</span>
+              <div class="gbar" id="bar-temp"><b class="mk"></b></div>
+              <span class="glbl">H</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== BARIS 3: LAMPU, SEATBELT | TRIP | ODO | ENGINE, OIL, BATTERY ===== -->
+        <section class="bottom">
+
+          <div class="ind-group left">
+            <!-- High beam: biru saat setHeadlights(2) -->
+            <div id="hl-high" class="ind" title="High beam">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 4h2a8 8 0 0 1 0 16h-2z" fill="currentColor" fill-opacity=".15" />
+                <path d="M9 6H2M9 10H2M9 14H2M9 18H2" />
+              </svg>
+            </div>
+            <!-- Low beam: hijau saat setHeadlights(1) -->
+            <div id="hl-low" class="ind" title="Low beam">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 4h2a8 8 0 0 1 0 16h-2z" fill="currentColor" fill-opacity=".15" />
+                <path d="M9 5L2 7.5M9 9L2 11.5M9 13L2 15.5M9 17L2 19.5" />
+              </svg>
+            </div>
+            <!-- Seatbelt: merah = belum dipasang, hijau = terpasang -->
+            <div id="seatbelts" class="ind on-red" title="Seatbelt">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="4" r="2.2" fill="currentColor" stroke="none" />
+                <path d="M8 22v-5.5L7 11.5C7 9.6 8.4 8 10.2 8h3.6C15.6 8 17 9.6 17 11.5l-1 5V22" />
+                <path d="M9 8.5l7.5 10" />
+              </svg>
+            </div>
+          </div>
+
+          <i class="div slant"></i>
+
+          <div class="metric">
+            <div class="m-in">
+              <span class="m-lbl">TRIP A</span>
+              <span class="m-val"><span id="trip">0.0</span><small>KM</small></span>
+            </div>
+          </div>
+
+          <i class="div"></i>
+
+          <div class="metric">
+            <div class="m-in">
+              <span class="m-lbl">ODO</span>
+              <span class="m-val"><span id="odometer">000000</span><small>KM</small></span>
+            </div>
+          </div>
+
+          <i class="div slant"></i>
+
+          <div class="ind-group right">
+            <div id="ind-engine" class="ind" title="Check engine">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 9h4V7h4v2h3l2 2h2v5h-2l-2 2H9l-3-3z" />
+                <path d="M3 11v4M3 13h3" />
+              </svg>
+            </div>
+            <div id="ind-oil" class="ind" title="Oil pressure">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2.5 10h4.2l1.3-2h2V6.5H8V5h6v1.5h-2V8h2.5l2 1.8 5-2.8 1 1.2-6.6 7.3H8.4L7 13H2.5zM20.2 14.6c0-.9 1.1-2.3 1.1-2.3s1.1 1.4 1.1 2.3c0 .6-.5 1.1-1.1 1.1s-1.1-.5-1.1-1.1z"/></svg>
+            </div>
+            <div id="ind-batt" class="ind" title="Battery">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2.5" y="7" width="19" height="11" rx="1.5" />
+                <path d="M6.5 7V5h3v2M14.5 7V5h3v2M6 12.5h3.5M14.5 12.5h3.5M16.25 10.75v3.5" />
+              </svg>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== INTRO (tampil sekali saat HUD pertama dipakai) ===== -->
+        <div class="intro" id="intro">
+          <!-- Logo sendiri: taruh file "logo.png" di folder yang sama. Kalau file ada, otomatis dipakai
+               dan tulisan bawaan di bawah disembunyikan. -->
+          <img class="intro-logo" src="logo.png" alt="" onload="document.getElementById('intro').classList.add('has-logo')" onerror="this.remove()">
+          <div class="intro-text" id="intro-text" data-text="OBEY">OBEY</div>
+          <i class="intro-line"></i>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

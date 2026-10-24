@@ -1,0 +1,393 @@
+/* =========================================================
+   JGVRP Speedometer HUD  -  cluster horizontal (pill)
+   Ukuran desain: 1200 x 320 px. Semua ukuran HUD diubah lewat variabel di bawah.
+   ========================================================= */
+
+:root {
+    /* ---- Pengaturan yang sering diubah ---- */
+    --scale: 0.45;              /* ukuran HUD keseluruhan (1 = 1200px lebar) */
+    --offset-bottom: 40px;      /* jarak HUD dari bawah layar */
+    --offset-side: 24px;        /* jarak HUD dari sisi kiri/kanan layar */
+    --speed-size: 92px;         /* ukuran angka speed */
+    --logo-size: 96px;          /* ukuran logo intro (logo.png) */
+
+    /* ---- Warna aksen (diatur script.js saat ganti tema; nilai awal = biru) ---- */
+    --accent: rgb(25, 182, 255);
+    --accent-rgb: 25, 182, 255;
+    --accent-light: rgb(120, 222, 255);
+
+    /* ---- Warna status ---- */
+    --warn: #ff2a2f;
+    --green: #22d65a;
+    --blue: #2f8bff;
+    --yellow: #ffc21a;
+    --amber: #ffb020;
+
+    --text: #f2f3f5;
+    --muted: #8a8f99;
+    --off: rgba(255, 255, 255, 0.22);
+    --seg-off: #232831;
+
+    /* Font: pasang file font di folder fonts/ (lihat README). Fallback aman kalau belum ada. */
+    --font-display: 'Orbitron', 'Bahnschrift', 'Eurostile', 'Arial Narrow', sans-serif;
+    --font-ui: 'Rajdhani', 'Bahnschrift', 'Segoe UI', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+    overflow: hidden;
+    font-family: var(--font-ui);
+    color: var(--text);
+    user-select: none;
+}
+
+.shared-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* ===================== POSISI HUD ===================== */
+/* Default: kanan bawah. Ganti lewat ?anchor=center / ?anchor=left, atau atur atribut data-anchor di <body>. */
+.hud-wrap {
+    position: fixed;
+    right: var(--offset-side);
+    bottom: var(--offset-bottom);
+    width: 1200px;
+    height: 320px;
+    transform: scale(var(--scale));
+    transform-origin: bottom right;
+}
+body[data-anchor="center"] .hud-wrap {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%) scale(var(--scale));
+    transform-origin: bottom center;
+}
+body[data-anchor="left"] .hud-wrap {
+    right: auto;
+    left: var(--offset-side);
+    transform-origin: bottom left;
+}
+
+/* Mode demo di browser */
+body.preview {
+    background:
+        radial-gradient(ellipse at 50% 120%, #2a2f38 0%, transparent 60%),
+        linear-gradient(180deg, #4b5563 0%, #1f242c 55%, #0d0f13 100%);
+}
+body.preview .hud-wrap {
+    right: auto;
+    left: 50%;
+    bottom: 50%;
+    transform: translate(-50%, 50%) scale(var(--scale));
+    transform-origin: center;
+}
+
+.theme-btn {
+    display: none;
+    position: fixed; top: 8px; right: 8px; z-index: 10;
+    align-items: center; gap: 6px;
+    padding: 4px 9px; border-radius: 999px; cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(10, 11, 13, 0.55); color: rgba(255, 255, 255, 0.75);
+    font: 700 10px/1 var(--font-ui); letter-spacing: 1.5px; text-transform: uppercase;
+    opacity: 0.7; transition: opacity 0.2s, border-color 0.2s, transform 0.1s;
+}
+body.preview .theme-btn, body.show-btn .theme-btn { display: flex; }
+.theme-btn i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.theme-btn:hover { opacity: 1; border-color: var(--accent); }
+.theme-btn:active { transform: scale(0.95); }
+
+/* ===================== BEZEL ===================== */
+.cluster {
+    position: relative;
+    width: 1200px;
+    height: 320px;
+    border-radius: 160px;
+    background: linear-gradient(180deg, #30333a 0%, #0f1013 13%, #060607 55%, #0c0d10 100%);
+    box-shadow:
+        inset 0 0 0 1.5px rgba(255, 255, 255, 0.1),
+        inset 0 3px 0 3px rgba(255, 255, 255, 0.04),
+        0 18px 30px rgba(0, 0, 0, 0.55);
+}
+
+.side-led {
+    position: absolute;
+    top: 50%;
+    width: 6px;
+    height: 44px;
+    margin-top: -22px;
+    border-radius: 3px;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+}
+.side-led.left { left: 12px; }
+.side-led.right { right: 12px; }
+
+.screen {
+    position: absolute;
+    inset: 18px 44px;
+    border-radius: 142px;
+    background: radial-gradient(ellipse at 50% 35%, #07101b 0%, #010204 72%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    display: grid;
+    grid-template-rows: 76px 120px 72px;
+    row-gap: 8px;
+    align-content: start;
+}
+
+/* ===================== PANEL (frame SVG) ===================== */
+.frame { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.frame .fill { fill: url(#panel-bg); }
+.frame .edge { fill: none; stroke: rgba(var(--accent-rgb), 0.45); stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+.frame .edge.strong { stroke: var(--accent); stroke-width: 2.2; filter: drop-shadow(0 0 5px rgba(var(--accent-rgb), 0.55)); }
+.frame .chev {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 3;
+    vector-effect: non-scaling-stroke;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 4px rgba(var(--accent-rgb), 0.8));
+}
+
+/* ===================== RPM ===================== */
+.rpm-panel { position: relative; width: 930px; height: 76px; justify-self: center; }
+.rpm-panel svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+#rpm .frame-fill { fill: url(#panel-bg); }
+#rpm .frame-line { fill: none; stroke: rgba(var(--accent-rgb), 0.4); stroke-width: 1.3; stroke-linejoin: round; }
+#rpm .chev {
+    fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
+    filter: drop-shadow(0 0 4px rgba(var(--accent-rgb), 0.8));
+}
+#rpm .rnum { font-family: var(--font-display); font-weight: 800; font-style: italic; font-size: 20px; fill: #fff; }
+#rpm .rnum.rl { fill: #ff3a2a; }
+#rpm .rlbl { font-family: var(--font-display); font-weight: 700; font-size: 17px; fill: #fff; }
+#rpm .rsub { font-family: var(--font-display); font-weight: 600; font-style: italic; font-size: 13px; fill: #d5d8de; }
+#rpm .rseg { fill: var(--c, #fff); opacity: 0.16; }
+#rpm .rseg.on { opacity: 1; }
+
+.cluster.redline #rpm .rl-group,
+.cluster.redline #rpm .rnum.rl { animation: blink 0.16s steps(2) infinite; }
+@keyframes blink { 50% { opacity: 0.25; } }
+
+/* ===================== BARIS TENGAH ===================== */
+.mid {
+    display: grid;
+    grid-template-columns: 152px 72px 1fr 278px;
+    align-items: center;
+    padding: 0 30px;
+}
+
+/* ----- Gear ----- */
+.gear-box {
+    position: relative;
+    height: 118px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+.gear-val {
+    position: relative;
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: 66px;
+    line-height: 1;
+    color: var(--accent-light);
+    transform: skewX(-10deg);
+    text-shadow: 0 0 18px rgba(var(--accent-rgb), 0.7);
+}
+.gear-lbl {
+    position: relative;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 4px;
+    padding-left: 4px;
+    color: var(--accent-light);
+}
+
+/* ----- Tekstur kecil di kiri speed (ada di referensi) ----- */
+.vent {
+    justify-self: end;
+    width: 38px;
+    height: 84px;
+    margin-right: 6px;
+    opacity: 0.55;
+    background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 6px);
+    clip-path: polygon(0 100%, 100% 0, 100% 100%);
+}
+
+/* ----- Speed ----- */
+.speed-panel { position: relative; height: 118px; margin-right: 12px; }
+.readout {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 14px;
+    padding: 0 0 14px 24px;
+}
+.speed {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: var(--speed-size);
+    line-height: 1;
+    white-space: nowrap;
+    transform: skewX(-10deg);
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+}
+.speed .bright { color: #fff; }
+.speed .dim { color: rgba(255, 255, 255, 0.1); }
+.unit {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-style: italic;
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: 1px;
+    color: #c6c9d0;
+    padding-bottom: 8px;
+}
+
+/* ----- Fuel + Temp ----- */
+.gauges {
+    position: relative;
+    height: 118px;
+    padding: 0 18px 0 22px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.grow { position: relative; display: flex; align-items: center; gap: 8px; height: 52px; }
+.gicon { width: 26px; height: 26px; color: #e9ecef; flex: none; }
+.gicon svg { width: 100%; height: 100%; display: block; }
+.glbl { font-family: var(--font-display); font-weight: 700; font-size: 14px; line-height: 1; color: #fff; flex: none; width: 12px; text-align: center; }
+.gsep { position: relative; display: block; height: 1px; background: rgba(255, 255, 255, 0.14); margin: 0 -6px; }
+
+.gbar { position: relative; flex: 1; height: 14px; display: flex; gap: 2.4px; margin: 2px 4px 0; }
+.gbar i { flex: 1; background: var(--seg-off); }
+.gbar i.on { background: var(--c, var(--accent)); }
+.cluster.fuel-low #bar-fuel i.on { background: var(--yellow); }
+.cluster.temp-hot #bar-temp i.on:nth-last-child(-n+4) { background: var(--warn); }
+.mk {
+    position: absolute;
+    top: -12px;
+    left: 0;
+    width: 0;
+    height: 0;
+    border: 5px solid transparent;
+    border-top: 8px solid #fff;
+    border-bottom: 0;
+    transform: translateX(-50%);
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+}
+
+/* ===================== BARIS BAWAH ===================== */
+.bottom {
+    display: grid;
+    grid-template-columns: 250px 2px 1fr 2px 1fr 2px 296px;
+    align-items: center;
+    padding: 0 30px;
+}
+.ind-group { display: flex; justify-content: space-evenly; align-items: center; }
+.ind-group.left { padding-left: 14px; }
+.ind-group.right { padding-right: 14px; }
+
+.ind { width: 30px; height: 30px; color: var(--off); transition: color 0.15s ease, filter 0.15s ease; flex: none; }
+.ind svg { width: 100%; height: 100%; display: block; }
+.ind.on-green { color: var(--green); filter: drop-shadow(0 0 5px rgba(34, 214, 90, 0.6)); }
+.ind.on-blue  { color: var(--blue);  filter: drop-shadow(0 0 6px rgba(47, 139, 255, 0.75)); }
+.ind.on-red   { color: var(--warn);  filter: drop-shadow(0 0 6px rgba(255, 42, 47, 0.65)); }
+.ind.on-amber { color: var(--amber); filter: drop-shadow(0 0 6px rgba(255, 176, 32, 0.6)); }
+/* Boot: semua ikon menyala sebentar seperti mobil asli saat kunci kontak ON */
+.cluster.booting .ind { color: rgba(255, 255, 255, 0.55); filter: none; }
+
+.div { display: block; width: 1.5px; height: 42px; background: rgba(255, 255, 255, 0.22); justify-self: center; }
+.div.slant { transform: skewX(-18deg); }
+
+.metric { display: flex; justify-content: center; }
+.m-in { display: flex; flex-direction: column; gap: 3px; }
+.m-lbl { font-family: var(--font-display); font-weight: 600; font-size: 12px; line-height: 1; letter-spacing: 1.5px; color: rgba(var(--accent-rgb), 0.95); }
+.m-val { display: flex; align-items: baseline; gap: 9px; padding-left: 24px; font-family: var(--font-display); font-weight: 600; font-size: 22px; line-height: 1; letter-spacing: 2px; color: #fff; font-variant-numeric: tabular-nums; }
+.m-val small { font-size: 13px; letter-spacing: 1px; color: var(--accent); font-weight: 700; }
+
+/* ===================== INTRO ===================== */
+.intro {
+    position: absolute;
+    left: 30px;
+    right: 30px;
+    top: 84px;
+    height: 120px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    opacity: 0;
+    pointer-events: none;
+}
+.intro-text {
+    display: flex;
+    gap: 6px;
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-style: italic;
+    font-size: 54px;
+    line-height: 1;
+    color: #fff;
+    transform: skewX(-6deg);
+}
+.intro-text span { opacity: 0; display: inline-block; }
+.intro-line {
+    display: block;
+    height: 2px;
+    width: 0;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.8);
+}
+
+.cluster.intro-on .intro { animation: introFade 2.7s ease both; }
+.cluster.intro-on .intro-text span { animation: slamIn 0.45s cubic-bezier(0.1, 0.9, 0.2, 1) forwards; }
+.cluster.intro-on .intro-line { animation: lineGrow 0.6s 1s ease-out forwards; }
+.cluster.intro-on .mid,
+.cluster.intro-on .bottom { animation: centerIn 2.7s ease both; }
+.cluster.intro-on .rpm-panel { animation: panelIn 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes introFade { 0% { opacity: 0; } 8% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes lineGrow  { to { width: 220px; } }
+@keyframes centerIn  { 0%, 82% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes panelIn   { 0% { opacity: 0; transform: translateX(-90px); } 55% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes slamIn {
+    0%   { opacity: 0; transform: translateX(-70px) skewX(-25deg); filter: blur(6px); }
+    70%  { opacity: 1; filter: blur(0); }
+    100% { opacity: 1; transform: none; filter: none; text-shadow: 0 0 14px rgba(255, 255, 255, 0.5); }
+}
+
+/* ----- Logo kustom (logo.png) ----- */
+.intro-logo {
+    display: none;
+    width: var(--logo-size);
+    height: var(--logo-size);
+    object-fit: contain;
+    filter: invert(1) contrast(1.6);   /* logo hitam -> putih, sisa latar jadi hitam pekat */
+    mix-blend-mode: screen;            /* latar putih/hitam hilang di atas HUD gelap */
+    opacity: 0;
+}
+.intro.has-logo { opacity: 1; animation: none !important; }   /* fade diatur oleh logonya sendiri */
+.intro.has-logo .intro-logo { display: block; }
+.intro.has-logo .intro-text,
+.intro.has-logo .intro-line { display: none; }
+.cluster.intro-on .intro.has-logo .intro-logo { animation: logoIn 2.7s ease-out both; }
+@keyframes logoIn {
+    0%   { opacity: 0; transform: scale(0.82); filter: invert(1) contrast(1.6) blur(6px); }
+    30%  { opacity: 1; transform: scale(1);    filter: invert(1) contrast(1.6) blur(0); }
+    80%  { opacity: 1; transform: scale(1);    filter: invert(1) contrast(1.6) blur(0); }
+    100% { opacity: 0; transform: scale(1.04); filter: invert(1) contrast(1.6) blur(0); }
+}
