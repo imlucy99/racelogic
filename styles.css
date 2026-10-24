@@ -211,16 +211,37 @@ body.preview .theme-btn, body.show-btn .theme-btn { display: flex; }
     color: var(--accent-light);
 }
 
-/* ----- Tekstur kecil di kiri speed (ada di referensi) ----- */
-.vent {
+/* ----- Shift light (di antara Gear dan Speed): 7 bar menyala dari bawah ke atas mengikuti RPM ----- */
+.shift-light {
     justify-self: end;
-    width: 38px;
-    height: 84px;
     margin-right: 6px;
-    opacity: 0.55;
-    background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 6px);
-    clip-path: polygon(0 100%, 100% 0, 100% 100%);
+    width: 40px;
+    height: 84px;
+    display: flex;
+    flex-direction: column-reverse;     /* bar pertama = paling bawah */
+    align-items: flex-end;
+    justify-content: space-between;
 }
+.shift-light i {
+    display: block;
+    height: 7px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.13);
+    transform: skewX(-18deg);
+    transition: background 0.06s linear, box-shadow 0.06s linear;
+}
+/* lebar bertahap: bawah lebar, atas sempit (bentuk segitiga seperti referensi) */
+.shift-light i:nth-child(1) { width: 40px; }
+.shift-light i:nth-child(2) { width: 35px; }
+.shift-light i:nth-child(3) { width: 30px; }
+.shift-light i:nth-child(4) { width: 25px; }
+.shift-light i:nth-child(5) { width: 20px; }
+.shift-light i:nth-child(6) { width: 15px; }
+.shift-light i:nth-child(7) { width: 10px; }
+.shift-light i.on { background: var(--accent); box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.85); }
+.shift-light i.on:nth-child(n+4) { background: var(--amber); box-shadow: 0 0 8px rgba(255, 176, 32, 0.85); }
+.shift-light i.on:nth-child(n+6) { background: #ff3a2a; box-shadow: 0 0 9px rgba(255, 58, 42, 0.9); }
+.cluster.redline .shift-light i.on { animation: blink 0.16s steps(2) infinite; }
 
 /* ----- Speed ----- */
 .speed-panel { position: relative; height: 118px; margin-right: 12px; }
@@ -256,7 +277,7 @@ body.preview .theme-btn, body.show-btn .theme-btn { display: flex; }
     padding-bottom: 8px;
 }
 
-/* ----- Fuel + Temp ----- */
+/* ----- Fuel + Oil pressure ----- */
 .gauges {
     position: relative;
     height: 118px;
@@ -275,7 +296,8 @@ body.preview .theme-btn, body.show-btn .theme-btn { display: flex; }
 .gbar i { flex: 1; background: var(--seg-off); }
 .gbar i.on { background: var(--c, var(--accent)); }
 .cluster.fuel-low #bar-fuel i.on { background: var(--yellow); }
-.cluster.temp-hot #bar-oil i.on:nth-last-child(-n+4) { background: var(--warn); }
+.cluster.oil-warn #bar-oil i.on { background: var(--yellow); }
+.cluster.oil-crit #bar-oil i.on { background: var(--warn); }
 .mk {
     position: absolute;
     top: -12px;

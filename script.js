@@ -12,7 +12,7 @@
      playIntro()
 
    API baru (netral, tidak terikat framework apa pun):
-     setTemp(derajat C)       setCheckEngine(bool)
+     setCheckEngine(bool)
      setOilWarning(bool)      setBatteryWarning(bool)
      setTrip(mil)             resetTrip()
      setTheme(nama|angka)     nextTheme()
@@ -28,13 +28,11 @@
 const CONFIG = {
     maxRpm: 9,              // skala tachometer (x1000), sesuai angka 0-9 di desain
     redline: 8,             // zona merah mulai di sini (x1000)
+    shiftStart: 5.5,        // shift light mulai menyala di RPM ini (x1000); penuh + berkedip di redline
     rpmSegments: 80,        // jumlah segmen bar RPM
-    gaugeSegments: 14,      // jumlah segmen bar fuel / temp
+    gaugeSegments: 14,      // jumlah segmen bar fuel / oil pressure
     units: 'imperial',      // tampilan: 'imperial' (MPH + MI) atau 'metric' (KM/H + KM)
     odoInputUnit: 'mi',     // satuan yang DIKIRIM game ke setOdometer: 'mi' atau 'km'
-    tempMinC: 50,           // suhu di ujung "C"
-    tempMaxC: 130,          // suhu di ujung "H"
-    tempHotC: 105,          // di atas ini 4 segmen terakhir jadi merah
     fuelLow: 0.20,          // bensin di bawah ini -> bar kuning
     maxFps: 60,
 };
@@ -82,7 +80,6 @@ const rpmStops = (a, l) => [
     [0.64, [190, 190, 190]], [0.77, [125, 125, 125]], [0.80, [200, 82, 28]], [0.88, [255, 79, 20]], [1, [255, 30, 26]],
 ];
 const fuelStops = (a) => [[0, a], [0.45, a], [0.65, WHITE], [1, WHITE]];
-const tempStops = (a) => [[0, a], [0.5, a], [0.65, WHITE], [0.78, WHITE], [0.86, [255, 106, 26]], [1, [255, 34, 26]]];
 
 // ---------- Bar RPM (SVG) ----------
 // Koordinat dalam viewBox 930 x 76. Angka 0 di x=78, angka 9 di x=815 (sesuai desain referensi).
@@ -128,9 +125,20 @@ function rpmLitCount(ratio) {
     return Math.max(0, Math.min(RPM.n, Math.floor((x - RPM.c0) / RPM.pitch) + 1));
 }
 
-// ---------- Bar fuel / temp ----------
+// ---------- Shift light (7 bar di antara Gear dan Speed) ----------
+const shiftBars = Array.from(($('shift-light')).children);
+function renderShift(ratio) {
+    const rpmK = ratio * CONFIG.maxRpm;                                   // RPM dalam x1000
+    const f = (rpmK - CONFIG.shiftStart) / (CONFIG.redline - CONFIG.shiftStart);
+    const n = f <= 0 ? 0 : Math.min(shiftBars.length, Math.ceil(f * shiftBars.length));
+    if (n === state.litShift) return;
+    state.litShift = n;
+    shiftBars.forEach((el, i) => el.classList.toggle('on', i < n));
+}
+
+// ---------- Bar fuel / oil pressure ----------
 const bars = {};
-['fuel', 'temp'].forEach((k) => {
+['fuel', 'oil'].forEach((k) => {
     const el = $('bar-' + k), mk = el.querySelector('.mk');
     const segs = [];
     for (let i = 0; i < CONFIG.gaugeSegments; i++) {
@@ -156,7 +164,7 @@ function recolor(a, l) {
     const N = CONFIG.gaugeSegments;
     rpmSegs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(rpmStops(a, l), i / (RPM.n - 1)))));
     bars.fuel.segs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(fuelStops(a), i / (N - 1)))));
-    bars.temp.segs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(tempStops(a), i / (N - 1)))));
+    bars.oil.segs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(fuelStops(a), i / (N - 1)))));
 }
 
 // ---------- Teks intro (ganti di index.html pada data-text="..."; ukuran huruf otomatis) ----------
@@ -183,6 +191,7 @@ const state = {
     rpm: 0,          // target 0-1 dari game
     rpmShown: 0,     // nilai yang di-smooth untuk animasi
     litRpm: 0,
+    litShift: 0,
     health: 1,       // 0-1
     fuel: 1,
     belted: false,
@@ -204,6 +213,7 @@ function renderRpm(ratio) {
         for (let i = lo; i < hi; i++) rpmSegs[i].classList.toggle('on', i < n);
         state.litRpm = n;
     }
+    renderShift(ratio);
     const red = ratio >= CONFIG.redline / CONFIG.maxRpm;
     if (red !== lastRedline) {
         lastRedline = red;
@@ -291,9 +301,12 @@ window.setFuel = function (fuel) {
     setBar('fuel', percent);
 };
 
-// ---------- 4. setHealth = OIL PRESSURE (0-1 atau 0-1000) -> ikon oli: kuning <= 50%, merah <= 30% ----------
+// ---------- 4. setHealth = OIL PRESSURE (0-1 atau 0-1000) -> bar L-H + ikon oli: kuning <= 50%, merah <= 30% ----------
 function updateWarnings() {
     const h = state.health;
+    setBar('oil', h);
+    elHud.classList.toggle('oil-warn', h <= 0.5 && h > 0.3);
+    elHud.classList.toggle('oil-crit', h <= 0.3);
     const oilCls = (h <= 0.3 || state.oilWarn) ? ' on-red' : h <= 0.5 ? ' on-amber' : '';
     setClass($('ind-engine'), 'ind' + (state.checkEngine ? ' on-amber' : ''));
     setClass($('ind-oil'), 'ind' + oilCls);
@@ -356,12 +369,8 @@ window.setOdometer = function (distance) {
     setText($('odometer'), String(Math.floor(meters * U.perMeter)).padStart(6, '0'));
 };
 
-// ---------- 11. Suhu mesin (derajat C) ----------
-window.setTemp = function (celsius) {
-    const c = Number(celsius) || 0;
-    setBar('temp', (c - CONFIG.tempMinC) / (CONFIG.tempMaxC - CONFIG.tempMinC));
-    elHud.classList.toggle('temp-hot', c >= CONFIG.tempHotC);
-};
+// ---------- 11. Suhu mesin: bar suhu diganti Oil Pressure. setTemp dibiarkan agar pemanggilan lama tidak error. ----------
+window.setTemp = function () {};
 
 // ---------- Engine (JGVRP: setEngine(true/false)) ----------
 window.setEngine = function (on) { state.engine = isTrueValue(on); };
@@ -568,7 +577,7 @@ window.setSeatbelts(false);
 window.setEngine(false);
 window.updateLockStatus(false);
 window.setOdometer(0);
-window.setTemp(90);
+updateWarnings();    // gambar bar oil pressure awal (setHealth(1000) di atas tidak menggambar karena nilainya sama)
 renderTrip();
 (function () {
     let saved = query.get('theme');
@@ -629,7 +638,6 @@ if (IS_DEMO) {
             setHealth(health);
             setFuel(fuel);
             setOdometer(odo);
-            setTemp(80 + 28 * Math.abs(Math.sin(t / 18)));
             setHeadlights(Math.floor(t / 9) % 3 === 2 ? 2 : 1);
             updateLockStatus(Math.floor(t / 7) % 2);
             setOilWarning(Math.floor(t / 12) % 4 === 3);
