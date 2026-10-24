@@ -190,8 +190,6 @@ const state = {
     lastSpeedAt: 0,
     lastTripSave: 0,
 };
-const BOOT_MS = 1700;
-let bootUntil = performance.now() + BOOT_MS;
 
 let lastRedline = null;
 function renderRpm(ratio) {
@@ -223,21 +221,12 @@ function frame(now) {
     const dt = Math.min(0.1, (now - lastFrame) / 1000);
     lastFrame = now;
 
-    let target = state.rpm;
-    if (now < bootUntil) {
-        // sweep bar saat kontak ON: 0 -> max -> 0
-        const t = 1 - (bootUntil - now) / BOOT_MS;
-        target = t < 0.45 ? t / 0.45 : t < 0.55 ? 1 : Math.max(0, 1 - (t - 0.55) / 0.45);
-    } else if (elHud.classList.contains('booting')) {
-        elHud.classList.remove('booting');
-    }
-
-    const k = now < bootUntil ? 1 : Math.min(1, dt * 14);
-    state.rpmShown += (target - state.rpmShown) * k;
+    const target = state.rpm;                       // intro tidak menyapu bar RPM; bar baru terlihat setelah intro selesai
+    state.rpmShown += (target - state.rpmShown) * Math.min(1, dt * 14);
     if (Math.abs(target - state.rpmShown) < 0.0005) state.rpmShown = target;
     renderRpm(state.rpmShown);
 
-    if (now < bootUntil || state.rpmShown !== target) rafId = requestAnimationFrame(frame);   // lanjut hanya kalau masih bergerak
+    if (state.rpmShown !== target) rafId = requestAnimationFrame(frame);   // lanjut hanya kalau masih bergerak
 }
 kick();
 
@@ -376,11 +365,9 @@ let introTimer;
 window.playIntro = function () {
     elHud.classList.remove('intro-on');
     void elHud.offsetWidth;                 // restart animasi CSS
-    elHud.classList.add('intro-on');
-    bootUntil = performance.now() + BOOT_MS;   // bar RPM ikut menyapu
-    kick();
+    elHud.classList.add('intro-on', 'booting');
     clearTimeout(introTimer);
-    introTimer = setTimeout(() => elHud.classList.remove('intro-on'), 2750);
+    introTimer = setTimeout(() => elHud.classList.remove('intro-on', 'booting'), 3300);
 };
 
 // ---------- Suara peringatan (Web Audio, tanpa file mp3) ----------

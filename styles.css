@@ -9,7 +9,7 @@
     --offset-bottom: 40px;      /* jarak HUD dari bawah layar */
     --offset-side: 24px;        /* jarak HUD dari sisi kiri/kanan layar */
     --speed-size: 92px;         /* ukuran angka speed */
-    --logo-size: 96px;          /* ukuran logo intro (logo.png) */
+    --logo-width: 920px;        /* lebar logo intro (logo.png); tinggi mengikuti rasio */
 
     /* ---- Warna aksen (diatur script.js saat ganti tema; nilai awal = biru) ---- */
     --accent: rgb(25, 182, 255);
@@ -319,23 +319,21 @@ body.preview .theme-btn, body.show-btn .theme-btn { display: flex; }
 .m-val small { font-size: 13px; letter-spacing: 1px; color: var(--accent); font-weight: 700; }
 
 /* ===================== INTRO ===================== */
+/* Intro menutupi seluruh layar HUD; RPM, speed, dan indikator baru muncul setelah logo selesai. */
 .intro {
     position: absolute;
-    left: 30px;
-    right: 30px;
-    top: 84px;
-    height: 120px;
+    inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 14px;
     opacity: 0;
     pointer-events: none;
 }
 .intro-text {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     font-family: var(--font-display);
     font-weight: 900;
     font-style: italic;
@@ -353,41 +351,40 @@ body.preview .theme-btn, body.show-btn .theme-btn { display: flex; }
     box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.8);
 }
 
-.cluster.intro-on .intro { animation: introFade 2.7s ease both; }
+.cluster.intro-on .intro { animation: introFade 3.3s ease both; }
 .cluster.intro-on .intro-text span { animation: slamIn 0.45s cubic-bezier(0.1, 0.9, 0.2, 1) forwards; }
 .cluster.intro-on .intro-line { animation: lineGrow 0.6s 1s ease-out forwards; }
+.cluster.intro-on .rpm-panel,
 .cluster.intro-on .mid,
-.cluster.intro-on .bottom { animation: centerIn 2.7s ease both; }
-.cluster.intro-on .rpm-panel { animation: panelIn 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.cluster.intro-on .bottom { animation: contentIn 3.3s ease both; }
 
 @keyframes introFade { 0% { opacity: 0; } 8% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes lineGrow  { to { width: 220px; } }
-@keyframes centerIn  { 0%, 82% { opacity: 0; } 100% { opacity: 1; } }
-@keyframes panelIn   { 0% { opacity: 0; transform: translateX(-90px); } 55% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+@keyframes contentIn { 0%, 80% { opacity: 0; } 100% { opacity: 1; } }
 @keyframes slamIn {
     0%   { opacity: 0; transform: translateX(-70px) skewX(-25deg); filter: blur(6px); }
     70%  { opacity: 1; filter: blur(0); }
     100% { opacity: 1; transform: none; filter: none; text-shadow: 0 0 14px rgba(255, 255, 255, 0.5); }
 }
 
-/* ----- Logo kustom (logo.png) ----- */
+/* ----- Logo (logo.png: PNG transparan, huruf putih, warna asli bar) ----- */
 .intro-logo {
     display: none;
-    width: var(--logo-size);
-    height: var(--logo-size);
+    width: var(--logo-width);
+    max-width: 94%;
+    max-height: 92%;
+    height: auto;
     object-fit: contain;
-    filter: invert(1) contrast(1.6);   /* logo hitam -> putih, sisa latar jadi hitam pekat */
-    mix-blend-mode: screen;            /* latar putih/hitam hilang di atas HUD gelap */
     opacity: 0;
 }
 .intro.has-logo { opacity: 1; animation: none !important; }   /* fade diatur oleh logonya sendiri */
 .intro.has-logo .intro-logo { display: block; }
 .intro.has-logo .intro-text,
 .intro.has-logo .intro-line { display: none; }
-.cluster.intro-on .intro.has-logo .intro-logo { animation: logoIn 2.7s ease-out both; }
+.cluster.intro-on .intro.has-logo .intro-logo { animation: logoIn 3.3s ease-out both; }
 @keyframes logoIn {
-    0%   { opacity: 0; transform: scale(0.82); filter: invert(1) contrast(1.6) blur(6px); }
-    30%  { opacity: 1; transform: scale(1);    filter: invert(1) contrast(1.6) blur(0); }
-    80%  { opacity: 1; transform: scale(1);    filter: invert(1) contrast(1.6) blur(0); }
-    100% { opacity: 0; transform: scale(1.04); filter: invert(1) contrast(1.6) blur(0); }
+    0%   { opacity: 0; transform: scale(0.9); filter: blur(8px); }
+    22%  { opacity: 1; transform: scale(1);   filter: blur(0); }
+    78%  { opacity: 1; transform: scale(1.02); filter: blur(0); }
+    100% { opacity: 0; transform: scale(1.05); filter: blur(0); }
 }
