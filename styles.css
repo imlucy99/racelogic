@@ -275,7 +275,7 @@ body.preview .theme-btn, body.show-btn .theme-btn { display: flex; }
 .gbar i { flex: 1; background: var(--seg-off); }
 .gbar i.on { background: var(--c, var(--accent)); }
 .cluster.fuel-low #bar-fuel i.on { background: var(--yellow); }
-.cluster.temp-hot #bar-temp i.on:nth-last-child(-n+4) { background: var(--warn); }
+.cluster.temp-hot #bar-oil i.on:nth-last-child(-n+4) { background: var(--warn); }
 .mk {
     position: absolute;
     top: -12px;

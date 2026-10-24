@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>JGVRP Speedometer HUD</title>
-  <meta name="description" content="Custom digital speedometer HUD untuk JGVRP: bar RPM segmented, speed KM/H, gear, fuel, temp, trip/odo, dan indikator kendaraan." />
+  <meta name="description" content="Custom digital speedometer HUD untuk JGVRP: bar RPM segmented, speed MPH, gear, fuel, oil pressure, trip/odo, dan indikator kendaraan." />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -58,7 +58,7 @@
             </svg>
             <div class="readout">
               <div id="speed-display" class="speed"><span class="dim">00</span><span class="bright">0</span></div>
-              <span class="unit">KM/H</span>
+              <span class="unit">MPH</span>
             </div>
           </div>
 
@@ -77,10 +77,10 @@
 
             <i class="gsep"></i>
 
-            <div class="grow" title="Engine temperature">
-              <span class="gicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 13V5.5a2 2 0 0 1 4 0V13a3.4 3.4 0 1 1-4 0z"/><path d="M3 20.5c1.6-1.3 3.2-1.3 4.8 0s3.2 1.3 4.8 0 3.2-1.3 4.8 0 2.4 1 3.6.3"/></svg></span>
-              <span class="glbl">C</span>
-              <div class="gbar" id="bar-temp"><b class="mk"></b></div>
+            <div class="grow" title="Oil Press (Engine Health)">
+              <span class="gicon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h10l3 3h3l2 2v4H8l-2-3H3z"/><path d="M7 9V6h5l2 3"/><path d="M17 12l4-3"/><path d="M10 14c0-1.2 1.5-2.8 1.5-2.8S13 12.8 13 14a1.5 1.5 0 0 1-3 0z"/></svg></span>
+              <span class="glbl">L</span>
+              <div class="gbar" id="bar-oil"><b class="mk"></b></div>
               <span class="glbl">H</span>
             </div>
           </div>

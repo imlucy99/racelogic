@@ -28,8 +28,8 @@ const CONFIG = {
     maxRpm: 9,              // skala tachometer (x1000), sesuai angka 0-9 di desain
     redline: 8,             // zona merah mulai di sini (x1000)
     rpmSegments: 80,        // jumlah segmen bar RPM
-    gaugeSegments: 14,      // jumlah segmen bar fuel / temp
-    speedFactor: 3.6,       // m/s -> km/h
+    gaugeSegments: 14,      // jumlah segmen bar fuel / oil pressure
+    speedFactor: 2.236936, // m/s -> mph
     odoInputUnit: 'mi',     // satuan yang DIKIRIM game ke setOdometer: 'mi' atau 'km' (tampilan selalu KM)
     tempMinC: 50,           // suhu di ujung "C"
     tempMaxC: 130,          // suhu di ujung "H"
@@ -123,9 +123,9 @@ function rpmLitCount(ratio) {
     return Math.max(0, Math.min(RPM.n, Math.floor((x - RPM.c0) / RPM.pitch) + 1));
 }
 
-// ---------- Bar fuel / temp ----------
+// ---------- Bar fuel / oil pressure (visual mengikuti Engine Health) ----------
 const bars = {};
-['fuel', 'temp'].forEach((k) => {
+['fuel', 'oil'].forEach((k) => {
     const el = $('bar-' + k), mk = el.querySelector('.mk');
     const segs = [];
     for (let i = 0; i < CONFIG.gaugeSegments; i++) {
@@ -151,7 +151,7 @@ function recolor(a, l) {
     const N = CONFIG.gaugeSegments;
     rpmSegs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(rpmStops(a, l), i / (RPM.n - 1)))));
     bars.fuel.segs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(fuelStops(a), i / (N - 1)))));
-    bars.temp.segs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(tempStops(a), i / (N - 1)))));
+    bars.oil.segs.forEach((el, i) => el.style.setProperty('--c', rgbStr(gradient(fuelStops(a), i / (N - 1)))));
 }
 
 // ---------- Teks intro (ganti di index.html pada data-text="..."; ukuran huruf otomatis) ----------
@@ -173,8 +173,8 @@ function recolor(a, l) {
 // ---------- State ----------
 const state = {
     mps: 0,          // kecepatan mentah (m/s)
-    kmh: 0,
-    lastKmhShown: -1,
+    mph: 0,
+    lastMphShown: -1,
     rpm: 0,          // target 0-1 dari game
     rpmShown: 0,     // nilai yang di-smooth untuk animasi
     litRpm: 0,
@@ -242,7 +242,7 @@ function saveTrip(force) {
 window.setTrip = function (km) { state.trip = Math.max(0, Number(km) || 0); renderTrip(); saveTrip(true); };
 window.resetTrip = function () { window.setTrip(0); };
 
-// ---------- 1. Kecepatan (m/s -> KM/H) ----------
+// ---------- 1. Kecepatan (m/s -> MPH) ----------
 function padDigits(n, len) {
     const s = String(Math.max(0, n)).padStart(len, '0');
     const firstSig = s.search(/[1-9]/);
@@ -251,12 +251,12 @@ function padDigits(n, len) {
 }
 window.setSpeed = function (speed) {
     const mps = Math.max(0, Number(speed) || 0);
-    const kmh = Math.round(mps * CONFIG.speedFactor);
+    const mph = Math.round(mps * CONFIG.speedFactor);
     state.mps = mps;
-    state.kmh = kmh;
-    if (kmh !== state.lastKmhShown) {                 // ganti DOM hanya kalau angkanya berubah
-        state.lastKmhShown = kmh;
-        $('speed-display').innerHTML = padDigits(kmh, 3);
+    state.mph = mph;
+    if (mph !== state.lastMphShown) {                 // ganti DOM hanya kalau angkanya berubah
+        state.lastMphShown = mph;
+        $('speed-display').innerHTML = padDigits(mph, 3);
     }
     const now = performance.now();                    // integrasi jarak untuk Trip A
     if (state.lastSpeedAt) {
@@ -296,6 +296,8 @@ function updateWarnings() {
 window.setHealth = function (health) {
     const val = Number(health) || 0;
     const percent = clamp01(val > 1 ? val / 1000 : val);
+    // Bar OIL PRESS menggunakan Engine Health sebagai sumber nilai.
+    setBar('oil', percent);
     if (percent === state.health) return;
     state.health = percent;
     updateWarnings();
@@ -350,12 +352,10 @@ window.setOdometer = function (distance) {
     setText($('odometer'), String(Math.floor(km)).padStart(6, '0'));
 };
 
-// ---------- 11. Suhu mesin (derajat C) ----------
-window.setTemp = function (celsius) {
-    const c = Number(celsius) || 0;
-    setBar('temp', (c - CONFIG.tempMinC) / (CONFIG.tempMaxC - CONFIG.tempMinC));
-    elHud.classList.toggle('temp-hot', c >= CONFIG.tempHotC);
-};
+// ---------- 11. Kompatibilitas: API lama diarahkan ke bar Oil Press berbasis Engine Health ----------
+window.setOilPressure = function () { setBar('oil', state.health); };
+// Kompatibilitas API lama: bar tetap mengikuti Engine Health, bukan suhu/tekanan oli terpisah.
+window.setTemp = window.setOilPressure;
 
 // ---------- Engine (JGVRP: setEngine(true/false)) ----------
 window.setEngine = function (on) { state.engine = isTrueValue(on); };
@@ -513,6 +513,7 @@ const ACTIONS = {
     setSeatbelts:   (d) => window.setSeatbelts(!!d.state),
     setOdometer:    (d) => window.setOdometer(Number(d.distance) || 0),
     setTemp:        (d) => window.setTemp(d.temp !== undefined ? d.temp : d.value),
+    setOilPressure: () => window.setOilPressure(),
     setCheckEngine: (d) => window.setCheckEngine(d.state),
     setOilWarning:  (d) => window.setOilWarning(d.state),
     setBatteryWarning: (d) => window.setBatteryWarning(d.state),
